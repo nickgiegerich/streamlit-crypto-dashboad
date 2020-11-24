@@ -17,6 +17,7 @@ Here is what the application shows:
 - 24 hour stats for the selected coins(s)
 - the order book for the selected coin(s)
 - the ticker for the selected coin(s)
+- currentyl working on candlestick charts
 """)
 
 expander = st.beta_expander("Guide")
