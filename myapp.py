@@ -115,7 +115,7 @@ st.write("""
 
 
 from_date = st.sidebar.date_input('**from date**')
-to_date = st.sidebar.date_input('**to date**')
+to_date = st.sidebar.date_input('**to** **date**')
 if(to_date > dt.date.today()):
     st.sidebar.write('Date cannot be in the future')
 
