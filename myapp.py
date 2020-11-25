@@ -34,7 +34,7 @@ then do the following:
 That's it!
 """)
 
-coins = st.sidebar.multiselect('Check the cryptos you want to watch', ['BTC', 'ETH', 'ETC', 'XRP'])
+coins = st.sidebar.multiselect('Check the cryptos you want to watch', ['BTC', 'ETH', 'ETC', 'XRP', 'LTC', 'ATOM', 'LINK', 'ALGO', 'OMG'])
 currency = st.sidebar.selectbox('Choose a currency', ['USD', 'EUR', 'GBP'])
 
 # format_string = coin_symbol + '-' + currency
