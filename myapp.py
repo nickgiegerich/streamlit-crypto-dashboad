@@ -46,7 +46,10 @@ daily_stats_list = []
 product_order_book_list = []
 product_ticker_list = []
 
+column_rename_dict = {}
+
 # populate the list
+coin_count = 0
 for coin in coins:
     daily_stats = public_client.get_product_24hr_stats(coin)
     daily_stats_list.append(daily_stats)
@@ -57,8 +60,14 @@ for coin in coins:
     product_ticker = public_client.get_product_ticker(product_id=coin)
     product_ticker_list.append(product_ticker)
 
+    column_rename_dict[coin_count] = coin
+    coin_count += 1
+
+
+
 # now combine the dictionary values into one dict
 collective_24hr_dict = {}
+
 if len(daily_stats_list) != 0:
     for k in daily_stats_list[0]:
         collective_24hr_dict[k] = [d[k] for d in daily_stats_list]
@@ -84,31 +93,29 @@ if len(product_ticker_list) != 0:
 # create dataframe for order book on coin(s)
 df_for_product_ticker = pd.DataFrame(collective_ticker_dict)
 
+
+
 st.write("""
 ## 24hr Stats:
 
-the rows are ordered as follows:
-
-""", coins, df_for_daily_stats)
+""", df_for_daily_stats.T.rename(column_rename_dict, axis='columns'))
 
 st.write("""
 ## Order Book:
 
-the rows are ordered as follows:
-
-""", coins, df_for_order_book)
+""", df_for_order_book.T.rename(column_rename_dict, axis='columns'))
 
 st.write("""
 ## Coin Ticker:
 
-the rows are ordered as follows:
-
-""", coins, df_for_product_ticker)
+""", df_for_product_ticker.T.rename(column_rename_dict, axis='columns'))
 
 
 
 from_date = st.sidebar.date_input('from date')
 to_date = st.sidebar.date_input('to date')
+if(to_date > dt.date.today()):
+    st.sidebar.write('Date cannot be in the future')
 
 default_date = dt.date.today()
 default_beg_date = default_date - dt.timedelta(days=30)
@@ -121,6 +128,7 @@ while increment_date != from_date:
     increment_date -= dt.timedelta(days=1)
     date_list.append(increment_date)
 
+# ETH Historic chart - need to make this dynamic
 historic_data = public_client.get_product_historic_rates('ETH-USD', from_date, to_date, 86400)
 df_for_historic_data = pd.DataFrame(historic_data)
 
@@ -136,10 +144,27 @@ fig.update_layout(
     xaxis_title='Date'
 )
 
-figure_one = st.plotly_chart(fig, use_container_width=True)
+# BTC Historic chart - need to make this dynamic
+historic_data = public_client.get_product_historic_rates('BTC-USD', from_date, to_date, 86400)
+df_for_historic_data = pd.DataFrame(historic_data)
+
+fig1 = go.FigureWidget(data=[go.Candlestick(x=date_list,
+                low=df_for_historic_data[1],
+                high=df_for_historic_data[2],
+                open=df_for_historic_data[3],
+                close=df_for_historic_data[4])])
+
+fig1.update_layout(
+    title='BTC-USD stock price',
+    yaxis_title='BTC-USD price',
+    xaxis_title='Date'
+)
+
+# figure_one = st.plotly_chart(fig, use_container_width=True)
 # st.write(df_for_historic_data)
 
 col1, col2 = st.beta_columns(2)
 
 col1.plotly_chart(fig, use_container_width=True)
-col2.plotly_chart(fig, use_container_width=True)
+col2.plotly_chart(fig1, use_container_width=True)
+
