@@ -17,7 +17,8 @@ Here is what the application shows:
 - 24 hour stats for the selected coins(s)
 - the order book for the selected coin(s)
 - the ticker for the selected coin(s)
-- currently working on candlestick charts
+- ****** currently working on candlestick charts ******
+            (dynamic functionality coming soon)
 """)
 
 expander = st.beta_expander("Guide")
@@ -28,6 +29,7 @@ then do the following:
 
 - select coin(s) you would like data for
 - select the currency you wish to use
+- to use candle sticks use the sidebar to select a from and to date
 
 That's it!
 """)
