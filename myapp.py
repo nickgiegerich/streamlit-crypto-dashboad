@@ -2,171 +2,130 @@ import streamlit as st
 import pandas as pd
 import datetime as dt
 import numpy as np
-import cbpro
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import time
+from crypto_coin import Coin
+import data_plot
 
-public_client = cbpro.PublicClient()
+# body_html = """
+#     <style>
+#         body { 
+#             background-color: #282c34;
+#             color: #ff48c4;
+#         }
 
+#         .sidebar .sidebar-content { 
+#             background-color: #282c34;
+#         }
+#     </style>
+
+# """
+# st.markdown(body_html, unsafe_allow_html=True)
 st.write("""
-# Simple App to Show Crypto Trading Info
+# Crypto Currency Dashboard
 
-Here is what the application shows:
+*see sidebar to the left for more info*
+""")
 
+st.sidebar.write("## Guide")
+st.sidebar.write("""
+- select coin(s) you would like data for
+- select the currency you wish to use
+- select a range of dates (this is for the candle stick plot)
+""")
+
+st.sidebar.write("## Info")
+st.sidebar.write("""
+- candle stick plot(s) -- default date range is last 30 days
 - 24 hour stats for the selected coins(s)
 - the order book for the selected coin(s)
 - the ticker for the selected coin(s)
-- ****** currently working on candlestick charts ******
-            (dynamic functionality coming soon)
 """)
 
-expander = st.beta_expander("Guide")
-expander.write("""
-to use the application open the sidebar to the left (if not already open)
+coin_col, currency_col = st.beta_columns(2)
 
-then do the following:
+coins = coin_col.multiselect('Check the cryptos you want to watch', ['BTC', 'ETH', 'ETC', 'XRP', 'LTC', 'ATOM', 'LINK', 'ALGO', 'OMG'])
+currency = currency_col.selectbox('Choose a currency', ['USD', 'EUR', 'GBP'])
 
-- select coin(s) you would like data for
-- select the currency you wish to use
-- to use candle sticks use the sidebar to select a from and to date
 
-That's it!
-""")
+date_picker = st.date_input('Choose Date Range', [dt.date.today() - dt.timedelta(days=30), dt.date.today() + dt.timedelta(days=1)], min_value=dt.date.today() - dt.timedelta(days=365), max_value=dt.date.today() + dt.timedelta(days=1))
 
-coins = st.sidebar.multiselect('Check the cryptos you want to watch', ['BTC', 'ETH', 'ETC', 'XRP', 'LTC', 'ATOM', 'LINK', 'ALGO', 'OMG'])
-currency = st.sidebar.selectbox('Choose a currency', ['USD', 'EUR', 'GBP'])
+
+date_list = []
+increment_date = date_picker[1]
+while increment_date != date_picker[0]:
+    increment_date -= dt.timedelta(days=1)
+    date_list.append(increment_date)
+
 
 # format_string = coin_symbol + '-' + currency
-
 # append the currency to each coin in the list
 for i in range(len(coins)):
     coins[i] = coins[i] + '-' + currency
 
-# create a list to store all the stats from multi coins
-daily_stats_list = []
-product_order_book_list = []
-product_ticker_list = []
 
-column_rename_dict = {}
-
-# populate the list
-coin_count = 0
+# populate a coin list
+coin_list = []
 for coin in coins:
-    daily_stats = public_client.get_product_24hr_stats(coin)
-    daily_stats_list.append(daily_stats)
-
-    order_book = public_client.get_product_order_book(coin, level=1)
-    product_order_book_list.append(order_book)
-
-    product_ticker = public_client.get_product_ticker(product_id=coin)
-    product_ticker_list.append(product_ticker)
-
-    column_rename_dict[coin_count] = coin
-    coin_count += 1
+    new_coin = Coin(coin, date_picker[0], date_picker[1])
+    coin_list.append(new_coin)
 
 
+display_data = {}
+rename = {}
+if len(coin_list) != 0:
+    k = 0
+    for coin in coin_list:
+        # set up key and assign empty list in dictionary
+        key = coin.get_coin_name()
+        display_data.setdefault(key, [])
 
-# now combine the dictionary values into one dict
-collective_24hr_dict = {}
+        rename[0] = key
 
-if len(daily_stats_list) != 0:
-    for k in daily_stats_list[0]:
-        collective_24hr_dict[k] = [d[k] for d in daily_stats_list]
+        history = data_plot.get_historic_info(coin.get_coin_name(), date_picker[0], date_picker[1], 86400)
+        data_frame_of_history = pd.DataFrame(history)
+        fig = go.FigureWidget(data=[go.Candlestick(x=date_list,
+                low=data_frame_of_history[1],
+                high=data_frame_of_history[2],
+                open=data_frame_of_history[3],
+                close=data_frame_of_history[4])])
+        
+        fig.update_layout(
+            title=coin.get_coin_name() +' stock price',
+            yaxis_title=coin.get_coin_name() +' price',
+            xaxis_title='Date'
+        )
 
-# create dataframe fo 24hr stats on coin(s)
-df_for_daily_stats = pd.DataFrame(collective_24hr_dict)
+        display_data[key].append(fig)
 
-# combine the dictionary values for order book into one dict
-collective_order_book_dict = {}
-if len(product_order_book_list) != 0:
-    for k in product_order_book_list[0]:
-        collective_order_book_dict[k] = [d[k] for d in product_order_book_list]
+        daily_stats = data_plot.twent_four_hr_info(coin.get_coin_name())
+        data_frame_of_stats = pd.DataFrame(daily_stats, index=[0])
+        data_frame_of_stats = data_frame_of_stats.T.rename(rename, axis='columns')
+        display_data[key].append(data_frame_of_stats) 
 
-# create dataframe for order book on coin(s)
-df_for_order_book = pd.DataFrame(collective_order_book_dict)
+        order_book = data_plot.order_book_info(coin.get_coin_name())
+        data_frame_of_order_book = pd.DataFrame(order_book, index=[0])
+        data_frame_of_order_book = data_frame_of_order_book.T.rename(rename, axis='columns')
+        display_data[key].append(data_frame_of_order_book)
 
-# combine the dictionary values for ticker info into one dict
-collective_ticker_dict = {}
-if len(product_ticker_list) != 0:
-    for k in product_ticker_list[0]:
-        collective_ticker_dict[k] = [d[k] for d in product_ticker_list]
+        ticker = data_plot.ticker_info(coin.get_coin_name())
+        data_frame_of_ticker = pd.DataFrame(ticker, index=[0])
+        data_frame_of_ticker = data_frame_of_ticker.T.rename(rename, axis='columns')
+        display_data[key].append(data_frame_of_ticker)
 
-# create dataframe for order book on coin(s)
-df_for_product_ticker = pd.DataFrame(collective_ticker_dict)
+        k += 1
+    
+    for key in display_data:
+        st.write("## " + key)
+        st.plotly_chart(display_data[key][0], use_container_width=True)
 
+        coin_info = st.beta_expander("More info for - " + key)
+        coin_info.write("### 24hr Stats:")
+        coin_info.write(display_data[key][1])
 
+        coin_info.write("### Order Book:")
+        coin_info.write(display_data[key][2])
 
-st.write("""
-## 24hr Stats:
-
-""", df_for_daily_stats.T.rename(column_rename_dict, axis='columns'))
-
-st.write("""
-## Order Book:
-
-""", df_for_order_book.T.rename(column_rename_dict, axis='columns'))
-
-st.write("""
-## Coin Ticker:
-
-""", df_for_product_ticker.T.rename(column_rename_dict, axis='columns'))
-
-
-
-from_date = st.sidebar.date_input('from date')
-to_date = st.sidebar.date_input('to date')
-if(to_date > dt.date.today()):
-    st.sidebar.write('Date cannot be in the future')
-
-default_date = dt.date.today()
-default_beg_date = default_date - dt.timedelta(days=30)
-
-date_list = []
-date_list.append(default_date)
-
-increment_date = to_date
-while increment_date != from_date:
-    increment_date -= dt.timedelta(days=1)
-    date_list.append(increment_date)
-
-# ETH Historic chart - need to make this dynamic
-historic_data = public_client.get_product_historic_rates('ETH-USD', from_date, to_date, 86400)
-df_for_historic_data = pd.DataFrame(historic_data)
-
-fig = go.FigureWidget(data=[go.Candlestick(x=date_list,
-                low=df_for_historic_data[1],
-                high=df_for_historic_data[2],
-                open=df_for_historic_data[3],
-                close=df_for_historic_data[4])])
-
-fig.update_layout(
-    title='ETH-USD stock price',
-    yaxis_title='ETH-USD price',
-    xaxis_title='Date'
-)
-
-# BTC Historic chart - need to make this dynamic
-historic_data = public_client.get_product_historic_rates('BTC-USD', from_date, to_date, 86400)
-df_for_historic_data = pd.DataFrame(historic_data)
-
-fig1 = go.FigureWidget(data=[go.Candlestick(x=date_list,
-                low=df_for_historic_data[1],
-                high=df_for_historic_data[2],
-                open=df_for_historic_data[3],
-                close=df_for_historic_data[4])])
-
-fig1.update_layout(
-    title='BTC-USD stock price',
-    yaxis_title='BTC-USD price',
-    xaxis_title='Date'
-)
-
-# figure_one = st.plotly_chart(fig, use_container_width=True)
-# st.write(df_for_historic_data)
-
-col1, col2 = st.beta_columns(2)
-
-col1.plotly_chart(fig, use_container_width=True)
-col2.plotly_chart(fig1, use_container_width=True)
-
+        coin_info.write("### Ticker Info:")
+        coin_info.write(display_data[key][3])
